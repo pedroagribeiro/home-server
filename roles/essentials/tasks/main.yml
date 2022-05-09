@@ -1,0 +1,41 @@
+---
+- name: Update all installed packages
+  apt:
+    update_cache: yes
+    upgrade: yes
+
+- name: Install essential packages
+  package:
+    name: "{{ packages }}"
+    state: latest
+
+- name: Add "{{ username }}" to the docker users group
+  command: sudo usermod -aG docker "{{ username }}"
+
+- name: Disable SSH password authentication
+  lineinfile:
+    dest: /etc/ssh/sshd_config
+    regexp: "^#PasswordAuthentication yes"
+    line: "PasswordAuthentication no"
+  register: sshd_config
+
+- name: Enable passwordless sudo for "{{ username }}"
+  lineinfile:
+    dest: /etc/sudoers
+    regexp: "^%wheel"
+    line: "{{ username }} ALL=(ALL) NOPASSWD: ALL"
+    validate: "/usr/sbin/visudo -cf %s"
+
+- name: Restart SSH daemon
+  service:
+    name: sshd
+    state: restarted
+  when: sshd_config.changed
+
+# Open firewall on port 30000 for general testing purposes
+
+- name: Open Firewall on port 30000
+  command: sudo ufw allow 30000/tcp
+
+- name: Reload Firewall service
+  command: sudo ufw reload

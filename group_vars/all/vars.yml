@@ -1,0 +1,10 @@
+username: pedro
+packages:
+  - vim
+  - neofetch
+  - docker.io
+  - docker-compose
+  - speedtest-cli
+  - htop
+  - curl
+  - git
