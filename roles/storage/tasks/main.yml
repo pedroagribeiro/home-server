@@ -1,0 +1,3 @@
+---
+- name: Install Nextcloud storage server
+  command: sudo snap install nextcloud

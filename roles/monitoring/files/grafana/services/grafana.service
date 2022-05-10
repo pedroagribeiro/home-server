@@ -1,0 +1,14 @@
+[Unit]
+Description=Grafana
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=root
+Group=root
+Restart=always
+Type=simple
+ExecStart=/usr/bin/docker start grafana
+
+[Install]
+WantedBy=multi-user.target

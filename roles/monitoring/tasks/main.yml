@@ -10,82 +10,30 @@
     state: directory
     mode: "0755"
 
-- name: Create /var/lib/promethus directory
-  ansible.builtin.file:
-    path: /var/lib/prometheus
-    state: directory
-    mode: "0755"
-
-- name: Download Prometheus 2.31.0
-  get_url:
-    url: https://github.com/prometheus/prometheus/releases/download/v2.31.0/prometheus-2.31.0.linux-amd64.tar.gz
-    dest: /var/tmp/prometheus-2.31.0.linux-amd64.tar.gz
-    mode: "0440"
-
-- name: Unarchive Prometheus 2.31.0
-  ansible.builtin.unarchive:
-    src: /var/tmp/prometheus-2.31.0.linux-amd64.tar.gz
-    dest: /var/tmp
-    remote_src: yes
-
-- name: Move prometheus and promtool executable to /usr/local/bin
-  command: mv /var/tmp/prometheus-2.31.0.linux-amd64/prometheus /var/tmp/prometheus-2.31.0.linux-amd64/promtool /usr/local/bin/
-
-- name: Check /etc/prometheus/consoles/ directory
-  stat:
-    path: /etc/prometheus/consoles/
-  register: consoles_folder_files_found
-
-- name: Check /etc/prometheus/console_libraries/ directory
-  stat:
-    path: /etc/prometheus/console_libraries/
-  register: console_libraries_folder_files_found
-
-- name: Move consoles/ folder to /etc/prometheus/
-  command: mv /var/tmp/prometheus-2.31.0.linux-amd64/consoles/ /etc/prometheus/
-  when: consoles_folder_files_found.stat.exists == false
-
-- name: Move console_libraries/ folder to /etc/prometheus/
-  command: mv /var/tmp/prometheus-2.31.0.linux-amd64/console_libraries/ /etc/prometheus/
-  when: console_libraries_folder_files_found.stat.exists == false
-
-- name: Move configuration file to /etc/prometheus
-  command: mv /var/tmp/prometheus-2.31.0.linux-amd64/prometheus.yml /etc/prometheus/prometheus.yml
-
-- name: Copy prometheus.yml to /etc/prometheus
+- name: Copy the configuration file to /etc/prometheus
   ansible.builtin.copy:
-    src: ./files/prometheus/prometheus.yml
+    src: ./files/prometheus/config/prometheus.yml
     dest: /etc/prometheus/prometheus.yml
 
-- name: Show prometheus version
-  command: prometheus --version
-
-- name: Ensure prometheus group exists
-  ansible.builtin.group:
-    name: prometheus
-    state: present
-    system: yes
-
-# - name: Create prometheus user and assign it to the created prometheus group
-#   command: sudo useradd -s /sbin/nologin --system -g prometheus prometheus
-
-- name: Create /prometheus/ directory
-  file:
-    path: /prometheus
+- name: Ensure /tmp/monitoring directory exists
+  ansible.builtin.file:
+    path: /tmp/monitoring
     state: directory
-    owner: prometheus
-    group: prometheus
-    mode: 0775
 
-- name: Configure directory ownership and permissions
-  command: sudo chown -R prometheus:prometheus /etc/prometheus /prometheus/
-
-- name: Configure directory ownership and permissions
-  command: sudo chown -R 775 /etc/prometheus/ /prometheus/
-
-- name: Copy the Prometheus Service file
+- name: Copy the docker-compose.yml to a temporary directory in order to build the container
   ansible.builtin.copy:
-    src: ./files/prometheus/prometheus.service
+    src: ./files/prometheus/docker-compose.yml
+    dest: /tmp/monitoring/prometheus-compose.yml
+
+- name: Deploy the Prometheus container with its docker-compose.yml
+  community.docker.docker_compose:
+    project_src: /tmp/monitoring
+    files:
+      - prometheus-compose.yml
+
+- name: Create Prometheus service in the system
+  ansible.builtin.copy:
+    src: ./files/prometheus/services/prometheus.service
     dest: /etc/systemd/system/prometheus.service
 
 - name: Start Prometheus service
@@ -99,8 +47,95 @@
     enabled: yes
     masked: no
 
+- name: Copy the docker-compose.yml to a temporary directory in order to build the container
+  ansible.builtin.copy:
+    src: ./files/exporters/node_exporter/docker-compose.yml
+    dest: /tmp/monitoring/node-exporter-compose.yml
+
+- name: Deploy the Node Exporter container with its docker-compose.yml
+  community.docker.docker_compose:
+    project_src: /tmp/monitoring
+    files:
+      - node-exporter-compose.yml
+
+- name: Create Node Exporter service in the system
+  ansible.builtin.copy:
+    src: ./files/exporters/node_exporter/node_exporter.service
+    dest: /etc/systemd/system/node_exporter.service
+
+- name: Start Node Exporter service
+  ansible.builtin.systemd:
+    state: started
+    name: node_exporter
+
+- name: Enable Node Exporter Service
+  ansible.builtin.systemd:
+    name: node_exporter
+    enabled: yes
+    masked: no
+
+- name: Copy the docker-compose.yml to a temporary directory in order to build the container
+  ansible.builtin.copy:
+    src: ./files/exporters/cadvisor/docker-compose.yml
+    dest: /tmp/monitoring/cadvisor-compose.yml
+
+- name: Deploy the Cadvisor container with its docker-compose.yml
+  community.docker.docker_compose:
+    project_src: /tmp/monitoring
+    files:
+      - cadvisor-compose.yml
+
+- name: Create Cadvisor service in the system
+  ansible.builtin.copy:
+    src: ./files/exporters/cadvisor/cadvisor.service
+    dest: /etc/systemd/system/cadvisor.service
+
+- name: Start Cadvisor service
+  ansible.builtin.systemd:
+    state: started
+    name: cadvisor
+
+- name: Enable Cadvisor Service
+  ansible.builtin.systemd:
+    name: cadvisor
+    enabled: yes
+    masked: no
+
 - name: Open Firewall on Prometheus port (!this must be changed though. Only for testing purposes)
   command: sudo ufw allow 9090/tcp
+
+- name: Reload Firewall service
+  command: sudo ufw reload
+
+- name: Copy the docker-compose.yml to a temporary directory in order to build the container
+  ansible.builtin.copy:
+    src: ./files/grafana/docker-compose.yml
+    dest: /tmp/monitoring/grafana-compose.yml
+
+- name: Deploy the Grafana container with its docker-compose.yml
+  community.docker.docker_compose:
+    project_src: /tmp/monitoring
+    files:
+      - grafana-compose.yml
+
+- name: Create Grafana service in the system
+  ansible.builtin.copy:
+    src: ./files/grafana/services/grafana.service
+    dest: /etc/systemd/system/grafana.service
+
+- name: Start Grafana service
+  ansible.builtin.systemd:
+    state: started
+    name: grafana
+
+- name: Enable Grafana Service
+  ansible.builtin.systemd:
+    name: grafana
+    enabled: yes
+    masked: no
+
+- name: Open Firewall on Grafana port
+  command: sudo ufw allow 3000/tcp
 
 - name: Reload Firewall service
   command: sudo ufw reload
