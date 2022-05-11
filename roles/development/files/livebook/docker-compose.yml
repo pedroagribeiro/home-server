@@ -1,0 +1,17 @@
+version: "3"
+
+volumes:
+  livebook-data:
+    driver: local
+
+services:
+  livebook:
+    image: livebook/livebook
+    container_name: livebook
+    environment:
+      - LIVEBOOK_PASSWORD=livebook_authentication
+    ports:
+      - "30001:8080"
+    volumes:
+      - livebook-data:/data
+    restart: unless-stopped

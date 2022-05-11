@@ -10,3 +10,9 @@
   become: yes
   roles:
     - monitoring
+
+- name: Configure the development applications
+  hosts: all
+  become: yes
+  roles:
+    - development

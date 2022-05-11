@@ -1,0 +1,37 @@
+- name: Ensure /tmp/development directory exists
+  ansible.builtin.file:
+    path: /tmp/development
+    state: directory
+
+- name: Copy the docker-compose.yml to a temporary directory in order to build the container
+  ansible.builtin.copy:
+    src: ./files/livebook/docker-compose.yml
+    dest: /tmp/development/livebook-compose.yml
+
+- name: Deploy the Livebook container with its docker-compose.yml
+  community.docker.docker_compose:
+    project_src: /tmp/development
+    files:
+      - livebook-compose.yml
+
+- name: Create Livebook service in the system
+  ansible.builtin.copy:
+    src: ./files/livebook/livebook.service
+    dest: /etc/systemd/system/livebook.service
+
+- name: Start Livebook service
+  ansible.builtin.systemd:
+    state: started
+    name: livebook
+
+- name: Enable Livebook Service
+  ansible.builtin.systemd:
+    name: livebook
+    enabled: yes
+    masked: no
+
+- name: Open Firewall on Livebook port
+  command: sudo ufw allow 30001/tcp
+
+- name: Reload Firewall service
+  command: sudo ufw reload
