@@ -16,3 +16,9 @@
   become: yes
   roles:
     - development
+
+- name: Configure the storage services
+  hosts: all
+  become: yes
+  roles:
+    - storage
